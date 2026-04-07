@@ -2,26 +2,27 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
-@app.route('/', methods=['POST'])
-def kakao():
-    data = request.get_json()
-    
-    user_msg = data['userRequest']['utterance']
+@app.route('/bot', methods=['POST'])
+def bot():
+    data = request.json
+    msg = data.get("userRequest", {}).get("utterance", "")
 
-    response = {
+    if msg == "핑":
+        reply = "퐁"
+    else:
+        reply = "몰루?"
+
+    return jsonify({
         "version": "2.0",
         "template": {
             "outputs": [
                 {
                     "simpleText": {
-                        "text": f"너가 보낸 말: {user_msg}"
+                        "text": reply
                     }
                 }
             ]
         }
-    }
+    })
 
-    return jsonify(response)
-
-if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=10000)
+app.run(host='0.0.0.0', port=5000)
