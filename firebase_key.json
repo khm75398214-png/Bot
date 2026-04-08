@@ -1,4 +1,1 @@
-cred = {
-  "type": "service_account",
-  ...
-}
+cred = credentials.Certificate("firebase_key.json")
