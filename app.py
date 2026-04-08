@@ -14,7 +14,7 @@ def bot():
 
     if msg == "핑":
         reply = "퐁"
-    elif msg.startswith("!경고") or msg == "경고":
+    elif msg == "경고" or msg.startswith("!경고"):
         reply = "경고 1회"
     else:
         reply = "몰루"
