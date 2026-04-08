@@ -1,0 +1,4 @@
+cred = {
+  "type": "service_account",
+  ...
+}
