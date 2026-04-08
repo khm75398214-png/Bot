@@ -1,53 +1,46 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-# 🔥 Firebase 연결
+app = Flask(__name__)
+
+# Firebase 연결
 cred = credentials.Certificate("firebase.json")
 firebase_admin.initialize_app(cred)
 db = firestore.client()
 
-app = Flask(__name__)
-
-# 🔥 경고 함수
-def add_warning(user_id):
-    doc = db.collection("warnings").document(user_id)
-
-    data = doc.get()
-
-    if data.exists:
-        count = data.to_dict().get("count", 0) + 1
-    else:
-        count = 1
-
-    doc.set({"count": count})
-    return count
-
-@app.route('/bot', methods=['POST'])
+@app.route("/bot", methods=["POST"])
 def bot():
-    data = request.json
-    msg = data.get("userRequest", {}).get("utterance", "")
-    user_id = data.get("userRequest", {}).get("user", {}).get("id", "")
+    data = request.get_json(force=True)  # 🔥 이걸로 수정
 
-    reply = "몰루?"
+    if not data:
+        return "No data"
 
-    if msg == "핑":
-        reply = "퐁"
+    user_msg = data["userRequest"]["utterance"]
 
-    elif "!경고" in msg:
-    count = add_warning(user_id)
-    reply = f"경고 {count}회"
-    return jsonify({
+    # 명령어 처리
+    if user_msg == "핑":
+        return {
+            "version": "2.0",
+            "template": {
+                "outputs": [{"simpleText": {"text": "퐁"}}]
+            }
+        }
+
+    elif user_msg.startswith("!경고"):
+        return {
+            "version": "2.0",
+            "template": {
+                "outputs": [{"simpleText": {"text": "경고 1회"}}]
+            }
+        }
+
+    # 기본 응답
+    return {
         "version": "2.0",
         "template": {
-            "outputs": [
-                {
-                    "simpleText": {
-                        "text": reply
-                    }
-                }
-            ]
+            "outputs": [{"simpleText": {"text": "몰루"}}]
         }
-    })
+    }
 
-app.run(host='0.0.0.0', port=5000)
+app.run(host="0.0.0.0", port=5000)
