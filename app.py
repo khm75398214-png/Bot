@@ -1,7 +1,16 @@
 from flask import Flask, request, jsonify
 import os
+import firebase_admin
+from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
+
+# Firebase 연결
+if not firebase_admin._apps:
+    cred = credentials.Certificate("firebase_key.json")
+    firebase_admin.initialize_app(cred)
+
+db = firestore.client()
 
 @app.route("/", methods=["GET"])
 def home():
@@ -11,11 +20,23 @@ def home():
 def bot():
     data = request.get_json(force=True)
     msg = data.get("userRequest", {}).get("utterance", "")
+    user_id = data.get("userRequest", {}).get("user", {}).get("id", "")
 
     if msg == "핑":
         reply = "퐁"
+
     elif msg == "경고" or msg.startswith("!경고"):
-        reply = "경고 1회"
+        doc_ref = db.collection("warnings").document(user_id)
+        doc = doc_ref.get()
+
+        if doc.exists:
+            count = doc.to_dict().get("count", 0) + 1
+        else:
+            count = 1
+
+        doc_ref.set({"count": count})
+        reply = f"경고 {count}회"
+
     else:
         reply = "몰루"
 
