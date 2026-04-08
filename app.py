@@ -1,80 +1,65 @@
 from flask import Flask, request, jsonify
+import firebase_admin
+from firebase_admin import credentials, firestore
+import os
 
 app = Flask(__name__)
 
-# 관리자 목록 (여기에 닉네임 추가)
-admins = ["가오니"]
+# Firebase 연결
+if not firebase_admin._apps:
+    cred = credentials.Certificate("firebase_key.json")
+    firebase_admin.initialize_app(cred)
 
-# 경고 데이터 (임시 저장 - 서버 꺼지면 초기화됨)
-warnings = {}
+db = firestore.client()
 
-# 특정 방에서만 작동
-allowed_rooms = ["홍보방"]
+@app.route("/bot", methods=["POST"])
+def bot():
+    data = request.get_json(force=True)
 
-@app.route("/", methods=["POST"])
-def kakao():
-    req = request.get_json()
-    
-    user_msg = req["userRequest"]["utterance"]
-    user = req["userRequest"]["user"]["id"]
-    room = req["userRequest"]["channel"]["name"]
+    if not data:
+        return jsonify({
+            "version": "2.0",
+            "template": {
+                "outputs": [
+                    {"simpleText": {"text": "데이터가 없음"}}
+                ]
+            }
+        })
 
-    # 🚪 특정 방 제한
-    if room not in allowed_rooms:
-        return response("이 방에서는 사용 불가")
+    user_msg = data.get("userRequest", {}).get("utterance", "")
+    user_id = data.get("userRequest", {}).get("user", {}).get("id", "unknown")
 
-    # 🏓 핑 테스트
     if user_msg == "핑":
-        return response("퐁")
+        reply = "퐁"
 
-    # ⚠️ 경고 시스템
-    elif user_msg.startswith("경고"):
-        if user not in warnings:
-            warnings[user] = 0
-        
-        warnings[user] += 1
-        return response(f"경고 {warnings[user]}회")
+    elif user_msg.startswith("!경고"):
+        doc_ref = db.collection("warnings").document(user_id)
+        doc = doc_ref.get()
 
-    # 👑 관리자 등록
-    elif user_msg.startswith("관리자등록"):
-        if user_msg.split(" ")[1] in admins:
-            return response("이미 관리자임")
-        
-        admins.append(user_msg.split(" ")[1])
-        return response("관리자 등록 완료")
-
-    # ❌ 관리자 해제
-    elif user_msg.startswith("관리자해제"):
-        target = user_msg.split(" ")[1]
-        
-        if target in admins:
-            admins.remove(target)
-            return response("관리자 해제 완료")
+        if doc.exists:
+            count = doc.to_dict().get("count", 0) + 1
         else:
-            return response("관리자 아님")
+            count = 1
 
-    # 📢 공지
-    elif user_msg.startswith("공지"):
-        if user not in admins:
-            return response("관리자만 가능")
-        
-        msg = user_msg.replace("공지 ", "")
-        return response(f"[공지]\n{msg}")
+        doc_ref.set({"count": count})
+        reply = f"경고 {count}회"
 
-    # 🔚 기본 응답
     else:
-        return response("몰루")
+        reply = "몰루"
 
-# 응답 함수 (중요)
-def response(text):
     return jsonify({
         "version": "2.0",
         "template": {
             "outputs": [
-                {"simpleText": {"text": text}}
+                {"simpleText": {"text": reply}}
             ]
         }
     })
 
+@app.route("/", methods=["GET"])
+def home():
+    return "server is running"
+
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=3000)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
