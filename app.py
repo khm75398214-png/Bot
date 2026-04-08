@@ -34,10 +34,9 @@ def bot():
     if msg == "핑":
         reply = "퐁"
 
-    elif msg.startswith("!경고"):
-        count = add_warning(user_id)
-        reply = f"경고 {count}회"
-
+    elif "!경고" in msg:
+    count = add_warning(user_id)
+    reply = f"경고 {count}회"
     return jsonify({
         "version": "2.0",
         "template": {
