@@ -23,7 +23,7 @@ db = firestore.client()
 # 설정
 ALLOWED_ROOM = "AT클"
 NOTICE_ROOMS = ["영어학원단톡", "나", "부계"]
-MASTER_ADMINS = ["𝒜𝒯1/AT1_PLUS"]
+MASTER_ADMINS = ["나", "부계", "가오니"]
 
 SPAM_LIMIT = 5
 SPAM_SECONDS = 3
