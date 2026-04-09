@@ -21,7 +21,7 @@ if not firebase_admin._apps:
 db = firestore.client()
 
 # 설정
-ALLOWED_ROOM = "영어학원단톡"
+ALLOWED_ROOM = ["영어학원 단톡", "나"]
 NOTICE_ROOMS = ["영어학원단톡", "나", "부계"]
 MASTER_ADMINS = ["나", "부계", "가오니"]
 
