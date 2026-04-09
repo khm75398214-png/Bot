@@ -161,10 +161,9 @@ def home():
 @app.route("/bot", methods=["POST"])
 def bot():
     data = request.get_json(force=True)
-
-    room = str(data.get("room", ""))
-    msg = str(data.get("msg", "")).strip()
-    sender = str(data.get("sender", "")).strip()
+    return jsonify({
+        "reply": f"room={data.get('room')} / sender={data.get('sender')} / msg={data.get('msg')}"
+    })
 
     if room != ALLOWED_ROOM:
         return jsonify({"reply": None})
