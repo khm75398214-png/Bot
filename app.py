@@ -20,18 +20,20 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-# 설정
-ALLOWED_ROOMS = ["영어학원 단톡", "헤해", "부계"]
-NOTICE_ROOMS = ["영어학원단톡", "헤헤", "부계"]
-MASTER_ADMINS = ["헤헤", "부계", "가오니"]
+# ===== 설정 =====
+ALLOWED_ROOMS = ["영어학원 단톡", "나", "부계"]
+NOTICE_ROOMS = ["영어학원 단톡", "나", "부계"]
+MASTER_ADMINS = ["나", "부계", "가오니"]
 
-SPAM_LIMIT = 5
-SPAM_SECONDS = 3
+SPAM_LIMIT = 5      # 몇 번 연속 보내면 도배
+SPAM_SECONDS = 3    # 몇 초 안에 보내면 도배
 
-
+# ===== 공통 함수 =====
 def today():
     return datetime.datetime.now().strftime("%Y-%m-%d")
 
+def now_ts():
+    return int(datetime.datetime.now().timestamp())
 
 def get_user(name):
     ref = db.collection("users").document(name)
@@ -51,7 +53,6 @@ def get_user(name):
         return data
 
     data = doc.to_dict()
-    # 누락 필드 보정
     data.setdefault("level", 1)
     data.setdefault("exp", 0)
     data.setdefault("warn", 0)
@@ -61,17 +62,13 @@ def get_user(name):
     data.setdefault("spamTime", 0)
     return data
 
-
 def update_user(name, data):
     db.collection("users").document(name).set(data)
-
 
 def is_admin(name):
     if name in MASTER_ADMINS:
         return True
-    doc = db.collection("admins").document(name).get()
-    return doc.exists
-
+    return db.collection("admins").document(name).get().exists
 
 def add_admin(name):
     db.collection("admins").document(name).set({
@@ -79,28 +76,21 @@ def add_admin(name):
         "createdAt": firestore.SERVER_TIMESTAMP
     })
 
-
 def remove_admin(name):
     db.collection("admins").document(name).delete()
 
-
 def get_admin_list():
-    result = list(MASTER_ADMINS)
-    docs = db.collection("admins").stream()
-    for doc in docs:
-        name = doc.id
-        if name not in result:
-            result.append(name)
-    return result
-
+    admins = list(MASTER_ADMINS)
+    for doc in db.collection("admins").stream():
+        if doc.id not in admins:
+            admins.append(doc.id)
+    return admins
 
 def get_banned_words():
-    docs = db.collection("bannedWords").stream()
     words = []
-    for doc in docs:
+    for doc in db.collection("bannedWords").stream():
         words.append(doc.id)
     return words
-
 
 def add_banned_word(word):
     db.collection("bannedWords").document(word).set({
@@ -108,10 +98,8 @@ def add_banned_word(word):
         "createdAt": firestore.SERVER_TIMESTAMP
     })
 
-
 def remove_banned_word(word):
     db.collection("bannedWords").document(word).delete()
-
 
 def save_notice(text, sender):
     db.collection("settings").document("notice").set({
@@ -120,22 +108,18 @@ def save_notice(text, sender):
         "updatedAt": firestore.SERVER_TIMESTAMP
     })
 
-
 def get_notice():
     doc = db.collection("settings").document("notice").get()
     if not doc.exists:
         return None
     return doc.to_dict()
 
-
-def get_ranking_text():
-    users = db.collection("users").stream()
+def ranking_text():
     ranking = []
-
-    for u in users:
-        d = u.to_dict()
+    for doc in db.collection("users").stream():
+        d = doc.to_dict()
         ranking.append((
-            u.id,
+            doc.id,
             d.get("level", 1),
             d.get("exp", 0),
             d.get("attendance", 0),
@@ -152,29 +136,27 @@ def get_ranking_text():
         text += f"{i+1}. {r[0]} | Lv.{r[1]} | EXP {r[2]}/100 | 출석 {r[3]}회\n"
     return text.strip()
 
-
+# ===== 라우트 =====
 @app.route("/")
 def home():
     return "ATBOT SERVER ON"
 
-
-@app.route("/bot", methods=["POST"])
+@app.route("/bot")
 def bot():
-    data = request.get_json(force=True)
-    return jsonify({
-        "reply": f"room={data.get('room')} / sender={data.get('sender')} / msg={data.get('msg')}"
-    })
-
-    if room != ALLOWED_ROOM:
-        return jsonify({"reply": None})
+    room = request.args.get("room", "").strip()
+    msg = request.args.get("msg", "").strip()
+    sender = request.args.get("sender", "").strip()
 
     if not sender:
         return jsonify({"reply": "sender 없음"})
 
+    if room not in ALLOWED_ROOMS:
+        return jsonify({"reply": None})
+
     user = get_user(sender)
 
-    # 입장 메시지 흉내
-    if "들어왔습니다" in msg or "환영합니다." in msg:
+    # 입장 환영
+    if "들어왔습니다" in msg or "환영합니다." in msg or "ㅇㄴㅎㅅㅇ." in msg:
         return jsonify({
             "reply": f"👋 {sender}님 환영합니다!\nAT1 클랜 채팅방입니다.\n규칙을 꼭 확인해주세요."
         })
@@ -194,7 +176,6 @@ def bot():
         target = msg.replace("!관리자등록 ", "", 1).strip()
         if not target:
             return jsonify({"reply": "사용법: !관리자등록 닉네임"})
-
         if is_admin(target):
             return jsonify({"reply": "이미 관리자입니다."})
 
@@ -209,10 +190,8 @@ def bot():
         target = msg.replace("!관리자해제 ", "", 1).strip()
         if not target:
             return jsonify({"reply": "사용법: !관리자해제 닉네임"})
-
         if target in MASTER_ADMINS:
             return jsonify({"reply": "❌ 기본 관리자는 해제할 수 없습니다."})
-
         if not db.collection("admins").document(target).get().exists:
             return jsonify({"reply": "관리자가 아닙니다."})
 
@@ -229,7 +208,6 @@ def bot():
             return jsonify({"reply": "사용법: !공지 내용"})
 
         save_notice(notice, sender)
-
         return jsonify({
             "reply": f"📢 AT1 클랜 공지\n\n{notice}\n\n- 관리자: {sender}"
         })
@@ -257,7 +235,7 @@ def bot():
             "broadcast": True,
             "rooms": NOTICE_ROOMS,
             "broadcastMessage": f"📢 전체 공지\n\n{notice}\n\n- 관리자: {sender}",
-            "reply": f"✅ 전체공지 전송 준비 완료 ({len(NOTICE_ROOMS)}개 방)"
+            "reply": f"✅ 전체공지 전송 완료 ({len(NOTICE_ROOMS)}개 방)"
         })
 
     # 경고 추가
@@ -278,7 +256,7 @@ def bot():
             text += "\n🚫 강퇴 요청 대상입니다."
         return jsonify({"reply": text})
 
-    # 경고확인
+    # 경고 확인
     if msg.startswith("!경고확인 "):
         target = msg.replace("!경고확인 ", "", 1).strip()
         if not target:
@@ -287,7 +265,7 @@ def bot():
         target_user = get_user(target)
         return jsonify({"reply": f"📋 {target} 경고 횟수: {target_user['warn']}회"})
 
-    # 경고초기화
+    # 경고 초기화
     if msg.startswith("!경고초기화 "):
         if not is_admin(sender):
             return jsonify({"reply": "❌ 관리자만 사용할 수 있습니다."})
@@ -399,7 +377,7 @@ def bot():
 
     # 랭킹
     if msg == "!랭킹":
-        return jsonify({"reply": get_ranking_text()})
+        return jsonify({"reply": ranking_text()})
 
     # 도움말
     if msg in ["!명령어", "!도움"]:
@@ -440,34 +418,26 @@ def bot():
             user["warn"] += 1
             update_user(sender, user)
 
-            text = (
-                f"🚫 금지어 감지\n"
-                f"대상: {sender}\n"
-                f"경고: {user['warn']}회"
-            )
+            text = f"🚫 금지어 감지\n대상: {sender}\n경고: {user['warn']}회"
             if user["warn"] >= 3:
                 text += "\n🚫 강퇴 요청 대상입니다."
             return jsonify({"reply": text})
 
     # 도배 감지
-    now_ts = int(datetime.datetime.now().timestamp())
-    if now_ts - int(user.get("spamTime", 0)) <= SPAM_SECONDS:
+    current = now_ts()
+    if current - int(user.get("spamTime", 0)) <= SPAM_SECONDS:
         user["spamCount"] += 1
     else:
         user["spamCount"] = 1
 
-    user["spamTime"] = now_ts
+    user["spamTime"] = current
 
     if user["spamCount"] >= SPAM_LIMIT:
         user["warn"] += 1
         user["spamCount"] = 0
         update_user(sender, user)
 
-        text = (
-            f"🚨 도배 감지\n"
-            f"대상: {sender}\n"
-            f"경고: {user['warn']}회"
-        )
+        text = f"🚨 도배 감지\n대상: {sender}\n경고: {user['warn']}회"
         if user["warn"] >= 3:
             text += "\n🚫 강퇴 요청 대상입니다."
         return jsonify({"reply": text})
@@ -475,22 +445,20 @@ def bot():
     # 일반 채팅 경험치
     if not msg.startswith("!"):
         user["exp"] += 5
-        level_up = False
+        leveled_up = False
 
         while user["exp"] >= 100:
             user["level"] += 1
             user["exp"] -= 100
-            level_up = True
+            leveled_up = True
 
         update_user(sender, user)
 
-        if level_up:
+        if leveled_up:
             return jsonify({"reply": f"🎉 {sender} 레벨업! Lv.{user['level']}"})
-        return jsonify({"reply": None})
 
     update_user(sender, user)
     return jsonify({"reply": None})
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 3000))
