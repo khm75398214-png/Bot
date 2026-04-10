@@ -7,9 +7,7 @@ from firebase_admin import credentials, firestore
 
 app = Flask(__name__)
 
-# =========================
 # Firebase 연결
-# =========================
 firebase_json = os.environ.get("FIREBASE_KEY")
 if not firebase_json:
     raise Exception("FIREBASE_KEY 환경 변수가 없음")
@@ -22,9 +20,6 @@ if not firebase_admin._apps:
 
 db = firestore.client()
 
-# =========================
-# 설정
-# =========================
 ALLOWED_ROOMS = ["영어학원 단톡", "헤헤", "부계"]
 NOTICE_ROOMS = ["영어학원 단톡", "헤헤", "부계"]
 MASTER_ADMINS = ["헤헤", "부계", "가오니"]
@@ -32,9 +27,6 @@ MASTER_ADMINS = ["헤헤", "부계", "가오니"]
 SPAM_LIMIT = 5
 SPAM_SECONDS = 3
 
-# =========================
-# 공통 함수
-# =========================
 def today():
     return datetime.datetime.now().strftime("%Y-%m-%d")
 
@@ -142,9 +134,6 @@ def get_ranking_text():
         text += f"{i+1}. {r[0]} | Lv.{r[1]} | EXP {r[2]}/100 | 출석 {r[3]}회\n"
     return text.strip()
 
-# =========================
-# 라우트
-# =========================
 @app.route("/")
 def home():
     return "ATBOT SERVER ON"
@@ -164,20 +153,17 @@ def bot():
 
         user = get_user(sender)
 
-        # 환영 메시지
         if "들어왔습니다" in msg or "환영합니다." in msg or "ㅇㄴㅎㅅㅇ." in msg:
             return jsonify({
                 "reply": f"👋 {sender}님 환영합니다!\nAT1 클랜 채팅방입니다.\n규칙을 꼭 확인해주세요."
             })
 
-        # 관리자 목록
         if msg in ["!관리자", "!관리자목록"]:
             admins = get_admin_list()
             return jsonify({
                 "reply": "👑 관리자 목록\n\n" + ("\n".join(admins) if admins else "없음")
             })
 
-        # 관리자 등록
         if msg.startswith("!관리자등록 "):
             if not is_admin(sender):
                 return jsonify({"reply": "❌ 관리자만 사용할 수 있습니다."})
@@ -191,7 +177,6 @@ def bot():
             add_admin(target)
             return jsonify({"reply": f"✅ 관리자 등록 완료: {target}"})
 
-        # 관리자 해제
         if msg.startswith("!관리자해제 "):
             if not is_admin(sender):
                 return jsonify({"reply": "❌ 관리자만 사용할 수 있습니다."})
@@ -207,7 +192,6 @@ def bot():
             remove_admin(target)
             return jsonify({"reply": f"🗑 관리자 해제 완료: {target}"})
 
-        # 공지
         if msg.startswith("!공지 "):
             if not is_admin(sender):
                 return jsonify({"reply": "❌ 관리자만 사용할 수 있습니다."})
@@ -221,7 +205,6 @@ def bot():
                 "reply": f"📢 AT1 클랜 공지\n\n{notice}\n\n- 관리자: {sender}"
             })
 
-        # 공지확인
         if msg == "!공지확인":
             notice = get_notice()
             if not notice:
@@ -231,7 +214,6 @@ def bot():
                 "reply": f"📢 현재 공지\n\n{notice.get('text', '')}\n\n- 관리자: {notice.get('sender', '알 수 없음')}"
             })
 
-        # 전체공지
         if msg.startswith("!전체공지 "):
             if not is_admin(sender):
                 return jsonify({"reply": "❌ 관리자만 사용할 수 있습니다."})
@@ -247,7 +229,6 @@ def bot():
                 "reply": f"✅ 전체공지 전송 완료 ({len(NOTICE_ROOMS)}개 방)"
             })
 
-        # 경고 추가
         if msg.startswith("!경고 "):
             if not is_admin(sender):
                 return jsonify({"reply": "❌ 관리자만 사용할 수 있습니다."})
@@ -265,7 +246,6 @@ def bot():
                 text += "\n🚫 강퇴 요청 대상입니다."
             return jsonify({"reply": text})
 
-        # 경고확인
         if msg.startswith("!경고확인 "):
             target = msg.replace("!경고확인 ", "", 1).strip()
             if not target:
@@ -274,7 +254,6 @@ def bot():
             target_user = get_user(target)
             return jsonify({"reply": f"📋 {target} 경고 횟수: {target_user['warn']}회"})
 
-        # 경고초기화
         if msg.startswith("!경고초기화 "):
             if not is_admin(sender):
                 return jsonify({"reply": "❌ 관리자만 사용할 수 있습니다."})
@@ -289,14 +268,12 @@ def bot():
 
             return jsonify({"reply": f"✅ {target} 경고가 초기화되었습니다."})
 
-        # 금지어 목록
         if msg == "!금지어":
             words = get_banned_words()
             return jsonify({
                 "reply": "🚫 금지어 목록\n\n" + ("\n".join(words) if words else "없음")
             })
 
-        # 금지어 추가
         if msg.startswith("!금지어추가 "):
             if not is_admin(sender):
                 return jsonify({"reply": "❌ 관리자만 사용할 수 있습니다."})
@@ -312,7 +289,6 @@ def bot():
             add_banned_word(word)
             return jsonify({"reply": f"✅ 금지어 추가: {word}"})
 
-        # 금지어 삭제
         if msg.startswith("!금지어삭제 "):
             if not is_admin(sender):
                 return jsonify({"reply": "❌ 관리자만 사용할 수 있습니다."})
@@ -324,7 +300,6 @@ def bot():
             remove_banned_word(word)
             return jsonify({"reply": f"🗑 금지어 삭제: {word}"})
 
-        # 삭제 요청
         if msg.startswith("!삭제 "):
             if not is_admin(sender):
                 return jsonify({"reply": "❌ 관리자만 사용할 수 있습니다."})
@@ -337,7 +312,6 @@ def bot():
                 "reply": f"🧹 메시지 삭제 요청\n대상: {target}\n관리자가 확인해주세요."
             })
 
-        # 강퇴 요청
         if msg.startswith("!강퇴 "):
             if not is_admin(sender):
                 return jsonify({"reply": "❌ 관리자만 사용할 수 있습니다."})
@@ -350,7 +324,6 @@ def bot():
                 "reply": f"🚫 강퇴 요청\n대상: {target}\n관리자가 확인 후 강퇴해주세요."
             })
 
-        # 레벨
         if msg == "!레벨":
             return jsonify({
                 "reply":
@@ -361,7 +334,6 @@ def bot():
                     f"출석: {user['attendance']}회"
             })
 
-        # 출석
         if msg == "!출석":
             if user["lastAttendance"] == today():
                 return jsonify({"reply": "📅 오늘은 이미 출석했어."})
@@ -384,11 +356,9 @@ def bot():
                     f"경험치: {user['exp']}/100"
             })
 
-        # 랭킹
         if msg == "!랭킹":
             return jsonify({"reply": get_ranking_text()})
 
-        # 도움말
         if msg in ["!명령어", "!도움"]:
             return jsonify({
                 "reply":
@@ -420,7 +390,6 @@ def bot():
                     "!명령어 / !도움"
             })
 
-        # 금지어 자동 감지
         banned_words = get_banned_words()
         for word in banned_words:
             if word and word in msg:
@@ -432,7 +401,6 @@ def bot():
                     text += "\n🚫 강퇴 요청 대상입니다."
                 return jsonify({"reply": text})
 
-        # 도배 감지
         current = now_ts()
         if current - int(user.get("spamTime", 0)) <= SPAM_SECONDS:
             user["spamCount"] += 1
@@ -451,7 +419,6 @@ def bot():
                 text += "\n🚫 강퇴 요청 대상입니다."
             return jsonify({"reply": text})
 
-        # 일반 채팅 경험치
         if not msg.startswith("!"):
             user["exp"] += 5
             leveled_up = False
@@ -471,3 +438,7 @@ def bot():
 
     except Exception as e:
         return jsonify({"reply": f"❌ 서버 오류: {str(e)}"})
+
+if __name__ == "__main__":
+    port = int(os.environ.get("PORT", 3000))
+    app.run(host="0.0.0.0", port=port)
